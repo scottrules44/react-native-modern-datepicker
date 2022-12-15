@@ -143,6 +143,8 @@ DatePicker.defaultProps = {
   mode: 'datepicker',
   minuteInterval: 5,
   style: {},
+  minutes:0,
+  hours: 12
 };
 
 DatePicker.propTypes = {
@@ -151,6 +153,8 @@ DatePicker.propTypes = {
   onTimeChange: PropTypes.func,
   onDateChange: PropTypes.func,
   current: PropTypes.string,
+  minutes: PropTypes.number,
+  hours: PropTypes.number,
   selected: PropTypes.string,
   minimumDate: PropTypes.string,
   maximumDate: PropTypes.string,
