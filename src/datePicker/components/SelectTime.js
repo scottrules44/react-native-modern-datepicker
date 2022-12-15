@@ -115,12 +115,12 @@ const TimeScroller = ({title, data, onChange}) => {
 };
 
 const SelectTime = () => {
-  const {options, state, utils, minuteInterval, mode, onTimeChange} = useCalendar();
+  const {options, state, utils, minuteInterval, mode, onTimeChange, minutes, hours} = useCalendar();
   const [mainState, setMainState] = state;
   const [show, setShow] = useState(false);
   const [time, setTime] = useState({
-    minute: 0,
-    hour: 0,
+    minute: minutes||0,
+    hour: hours||12,
   });
   const style = styles(options);
   const openAnimation = useRef(new Animated.Value(0)).current;
@@ -128,10 +128,10 @@ const SelectTime = () => {
   useEffect(() => {
     show &&
       setTime({
-        minute: 0,
-        hour: 0,
+        minute: minutes||0,
+        hour: hours||12,
       });
-  }, [show]);
+  }, [show, minutes, hours]);
 
   useEffect(() => {
     mainState.timeOpen && setShow(true);
