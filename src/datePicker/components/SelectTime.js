@@ -14,14 +14,15 @@ import {useCalendar} from '../DatePicker';
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
-const TimeScroller = ({title, data, onChange}) => {
+const TimeScroller = ({title, data, onChange, startValue}) => {
   const {options, utils} = useCalendar();
   const [itemSize, setItemSize] = useState(0);
   const style = styles(options);
   const scrollAnimatedValue = useRef(new Animated.Value(0)).current;
   const scrollListener = useRef(null);
   const active = useRef(0);
-  data = ['', '', ...data, '', ''];
+  const refContainer = useRef(); 
+  data = ['', '', ...data, '', '']; 
 
   useEffect(() => {
     scrollListener.current && clearInterval(scrollListener.current);
@@ -84,8 +85,10 @@ const TimeScroller = ({title, data, onChange}) => {
     <View style={style.row} onLayout={changeItemWidth}>
       <Text style={style.title}>{title}</Text>
       <AnimatedFlatList
+        ref={refContainer}
+        onContentSizeChange={() => refContainer.current?.scrollToOffset({offset:itemSize*startValue})} // scroll end
         pagingEnabled
-        showsHorizontalScrollIndicator={false}
+        showsHorizontalScrollIndicator={true}
         horizontal
         snapToInterval={itemSize}
         decelerationRate={'fast'}
@@ -94,10 +97,11 @@ const TimeScroller = ({title, data, onChange}) => {
         })}
         data={I18nManager.isRTL ? data.reverse() : data}
         onMomentumScrollEnd={() => {
+          
           const index = Math.round(active.current / itemSize);
           onChange(data[index + 2]);
         }}
-        keyExtractor={(_, i) => String(i)}
+        keyExtractor={(_, i) => {String(i);}}
         renderItem={renderItem}
         inverted={I18nManager.isRTL}
         contentContainerStyle={
@@ -188,11 +192,13 @@ const SelectTime = () => {
         title={utils.config.hour}
         data={Array.from({length: 24}, (x, i) => i)}
         onChange={hour => setTime({...time, hour})}
+        startValue={hours}
       />
       <TimeScroller
         title={utils.config.minute}
         data={Array.from({length: 60 / minuteInterval}, (x, i) => i * minuteInterval)}
         onChange={minute => setTime({...time, minute})}
+        startValue={minutes}
       />
       <View style={style.footer}>
         <TouchableOpacity style={style.button} activeOpacity={0.8} onPress={selectTime}>
