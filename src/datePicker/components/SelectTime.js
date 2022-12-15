@@ -88,7 +88,6 @@ const TimeScroller = ({title, data, onChange, startValue}) => {
         ref={refContainer}
         onContentSizeChange={() => refContainer.current?.scrollToOffset({offset:itemSize*startValue})} // scroll end
         pagingEnabled
-        showsHorizontalScrollIndicator={true}
         horizontal
         snapToInterval={itemSize}
         decelerationRate={'fast'}
