@@ -1,280 +1,173 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {
-  View,
-  StyleSheet,
-  Text,
-  Animated,
-  FlatList,
-  Easing,
-  TouchableOpacity,
-  I18nManager,
-} from 'react-native';
+import React, {createContext, useReducer, useContext, useState} from 'react';
+import {View, StyleSheet} from 'react-native';
+import PropTypes from 'prop-types';
 
-import {useCalendar} from '../DatePicker';
+import {Calendar, SelectMonth, SelectTime} from './components';
+import {utils} from '../utils';
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+const options = {
+  backgroundColor: '#fff',
+  textHeaderColor: '#212c35',
+  textDefaultColor: '#2d4150',
+  selectedTextColor: '#fff',
+  mainColor: '#61dafb',
+  textSecondaryColor: '#7a92a5',
+  borderColor: 'rgba(122, 146, 165, 0.1)',
+  defaultFont: 'System',
+  headerFont: 'System',
+  textFontSize: 15,
+  textHeaderFontSize: 17,
+  headerAnimationDistance: 100,
+  daysAnimationDistance: 200,
+};
 
-const TimeScroller = ({title, data, onChange, startValue}) => {
-  const {options, utils} = useCalendar();
-  const [itemSize, setItemSize] = useState(0);
-  const style = styles(options);
-  const scrollAnimatedValue = useRef(new Animated.Value(0)).current;
-  const scrollListener = useRef(null);
-  const active = useRef(0);
-  const refContainer = useRef(); 
-  data = ['', '', ...data, '', '']; 
+const reducer = (state, action) => {
+  switch (action.type) {
+    case 'set':
+      return {...state, ...action};
+    case 'toggleMonth':
+      return {...state, monthOpen: !state.monthOpen};
+    case 'toggleTime':
+      return {...state, timeOpen: !state.timeOpen};
+    default:
+      throw new Error('Unexpected action');
+  }
+};
 
-  useEffect(() => {
-    scrollListener.current && clearInterval(scrollListener.current);
-    scrollListener.current = scrollAnimatedValue.addListener(({value}) => (active.current = value));
+const CalendarContext = createContext();
 
-    return () => {
-      clearInterval(scrollListener.current);
-    };
-  }, [scrollAnimatedValue]);
+const useCalendar = () => {
+  const contextValue = useContext(CalendarContext);
+  return contextValue;
+};
 
-  const changeItemWidth = ({nativeEvent}) => {
-    const {width} = nativeEvent.layout;
-    !itemSize && setItemSize(width / 5);
+const DatePicker = props => {
+  const calendarUtils = new utils(props);
+  const contextValue = {
+    ...props,
+    reverse: props.reverse === 'unset' ? !props.isGregorian : props.reverse,
+    options: {...options, ...props.options},
+    utils: calendarUtils,
+    state: useReducer(reducer, {
+      activeDate: props.current || calendarUtils.getToday(),
+      selectedDate: props.selected
+        ? calendarUtils.getFormated(calendarUtils.getDate(props.selected))
+        : '',
+      monthOpen: props.mode === 'monthYear',
+      timeOpen: props.mode === 'time',
+    }),
   };
+  const [minHeight, setMinHeight] = useState(300);
+  const style = styles(contextValue.options);
 
-  const renderItem = ({item, index}) => {
-    const makeAnimated = (a, b, c) => {
-      return {
-        inputRange: [...data.map((_, i) => i * itemSize)],
-        outputRange: [
-          ...data.map((_, i) => {
-            const center = i + 2;
-            if (center === index) {
-              return a;
-            } else if (center + 1 === index || center - 1 === index) {
-              return b;
-            } else {
-              return c;
-            }
-          }),
-        ],
-      };
-    };
-
-    return (
-      <Animated.View
-        style={[
-          {
-            width: itemSize,
-            opacity: scrollAnimatedValue.interpolate(makeAnimated(1, 0.6, 0.3)),
-            transform: [
-              {
-                scale: scrollAnimatedValue.interpolate(makeAnimated(1.2, 0.9, 0.8)),
-              },
-              {
-                scaleX: I18nManager.isRTL ? -1 : 1,
-              },
-            ],
-          },
-          style.listItem,
-        ]}>
-        <Text style={style.listItemText}>
-          {utils.toPersianNumber(String(item).length === 1 ? '0' + item : item)}
-        </Text>
-      </Animated.View>
-    );
+  const renderBody = () => {
+    switch (contextValue.mode) {
+      default:
+      case 'datepicker':
+        return (
+          <React.Fragment>
+            <Calendar />
+            <SelectMonth />
+            <SelectTime />
+          </React.Fragment>
+        );
+      case 'calendar':
+        return (
+          <React.Fragment>
+            <Calendar />
+            <SelectMonth />
+          </React.Fragment>
+        );
+      case 'monthYear':
+        return <SelectMonth />;
+      case 'time':
+        return <SelectTime />;
+    }
   };
 
   return (
-    <View style={style.row} onLayout={changeItemWidth}>
-      <Text style={style.title}>{title}</Text>
-      <AnimatedFlatList
-        ref={refContainer}
-        onContentSizeChange={() => refContainer.current?.scrollToOffset({offset:itemSize*startValue})} // scroll end
-        showsHorizontalScrollIndicator={false}
-        pagingEnabled
-        horizontal
-        snapToInterval={itemSize}
-        decelerationRate={'fast'}
-        onScroll={Animated.event([{nativeEvent: {contentOffset: {x: scrollAnimatedValue}}}], {
-          useNativeDriver: true,
-        })}
-        data={I18nManager.isRTL ? data.reverse() : data}
-        onMomentumScrollEnd={() => {
-          
-          const index = Math.round(active.current / itemSize);
-          onChange(data[index + 2]);
-        }}
-        keyExtractor={(_, i) => {String(i);}}
-        renderItem={renderItem}
-        inverted={I18nManager.isRTL}
-        contentContainerStyle={
-          I18nManager.isRTL && {
-            transform: [
-              {
-                scaleX: -1,
-              },
-            ],
-          }
-        }
-      />
-    </View>
-  );
-};
-
-const SelectTime = () => {
-  const {options, state, utils, minuteInterval, mode, onTimeChange, minutes, hours} = useCalendar();
-  const [mainState, setMainState] = state;
-  const [show, setShow] = useState(false); 
-  const [time, setTime] = useState({
-    minute: minutes||0,
-    hour: hours||12,
-  });
-  const style = styles(options);
-  const openAnimation = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    show &&
-      setTime({
-        minute: minutes||0,
-        hour: hours||12,
-      });
-  }, [show, minutes, hours]);
-
-  useEffect(() => {
-    mainState.timeOpen && setShow(true);
-    Animated.timing(openAnimation, {
-      toValue: mainState.timeOpen ? 1 : 0,
-      duration: 350,
-      useNativeDriver: true,
-      easing: Easing.bezier(0.17, 0.67, 0.46, 1),
-    }).start(() => {
-      !mainState.timeOpen && setShow(false);
-    });
-  }, [mainState.timeOpen, openAnimation]);
-
-  const selectTime = () => {
-    const newTime = utils.getDate(mainState.activeDate);
-    newTime.hour(time.hour).minute(time.minute);
-    setMainState({
-      type: 'set',
-      activeDate: utils.getFormated(newTime),
-      selectedDate: mainState.selectedDate
-        ? utils.getFormated(
-            utils
-              .getDate(mainState.selectedDate)
-              .hour(time.hour)
-              .minute(time.minute),
-          )
-        : '',
-    });
-    onTimeChange(utils.getFormated(newTime, 'timeFormat'));
-    mode !== 'time' &&
-      setMainState({
-        type: 'toggleTime',
-      });
-  };
-
-  const containerStyle = [
-    style.container,
-    {
-      opacity: openAnimation,
-      transform: [
-        {
-          scale: openAnimation.interpolate({
-            inputRange: [0, 1],
-            outputRange: [1.1, 1],
-          }),
-        },
-      ],
-    },
-  ];
-
-  return show ? (
-    <Animated.View style={containerStyle}>
-      <TimeScroller
-        title={utils.config.hour}
-        data={Array.from({length: 24}, (x, i) => i)}
-        onChange={hour => setTime({...time, hour})}
-        startValue={hours}
-      />
-      <TimeScroller
-        title={utils.config.minute}
-        data={Array.from({length: 60 / minuteInterval}, (x, i) => i * minuteInterval)}
-        onChange={minute => setTime({...time, minute})}
-        startValue={minutes}
-      />
-      <View style={style.footer}>
-        <TouchableOpacity style={style.button} activeOpacity={0.8} onPress={selectTime}>
-          <Text style={style.btnText}>{utils.config.timeSelect}</Text>
-        </TouchableOpacity>
-        {mode !== 'time' && (
-          <TouchableOpacity
-            style={[style.button, style.cancelButton]}
-            onPress={() =>
-              setMainState({
-                type: 'toggleTime',
-              })
-            }
-            activeOpacity={0.8}>
-            <Text style={style.btnText}>{utils.config.timeClose}</Text>
-          </TouchableOpacity>
-        )}
+    <CalendarContext.Provider value={contextValue}>
+      <View
+        style={[style.container, {minHeight}, props.style]}
+        onLayout={({nativeEvent}) => setMinHeight(nativeEvent.layout.width * 0.9 + 55)}>
+        {renderBody()}
       </View>
-    </Animated.View>
-  ) : null;
+    </CalendarContext.Provider>
+  );
 };
 
 const styles = theme =>
   StyleSheet.create({
     container: {
-      position: 'absolute',
-      width: '100%',
-      height: '100%',
-      top: 0,
-      right: 0,
       backgroundColor: theme.backgroundColor,
-      borderRadius: 10,
-      flexDirection: 'column',
-      justifyContent: 'center',
-      zIndex: 999,
-    },
-    row: {
-      flexDirection: 'column',
-      alignItems: 'center',
-      marginVertical: 5,
-    },
-    title: {
-      fontSize: theme.textHeaderFontSize,
-      color: theme.mainColor,
-      fontFamily: theme.headerFont,
-    },
-    listItem: {
-      height: 60,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    listItemText: {
-      fontSize: theme.textHeaderFontSize,
-      color: theme.textDefaultColor,
-      fontFamily: theme.defaultFont,
-    },
-    footer: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      marginTop: 15,
-    },
-    button: {
-      paddingVertical: 10,
-      paddingHorizontal: 25,
-      borderRadius: 8,
-      backgroundColor: theme.mainColor,
-      margin: 8,
-    },
-    btnText: {
-      fontSize: theme.textFontSize,
-      color: theme.selectedTextColor,
-      fontFamily: theme.defaultFont,
-    },
-    cancelButton: {
-      backgroundColor: theme.textSecondaryColor,
+      position: 'relative',
+      width: '100%',
+      overflow: 'hidden',
     },
   });
 
-export {SelectTime};
+const optionsShape = {
+  backgroundColor: PropTypes.string,
+  textHeaderColor: PropTypes.string,
+  textDefaultColor: PropTypes.string,
+  selectedTextColor: PropTypes.string,
+  mainColor: PropTypes.string,
+  textSecondaryColor: PropTypes.string,
+  borderColor: PropTypes.string,
+  defaultFont: PropTypes.string,
+  headerFont: PropTypes.string,
+  textFontSize: PropTypes.number,
+  textHeaderFontSize: PropTypes.number,
+  headerAnimationDistance: PropTypes.number,
+  daysAnimationDistance: PropTypes.number,
+};
+const modeArray = ['datepicker', 'calendar', 'monthYear', 'time'];
+const minuteIntervalArray = [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60];
+
+DatePicker.defaultProps = {
+  onSelectedChange: () => null,
+  onMonthYearChange: () => null,
+  onTimeChange: () => null,
+  onDateChange: () => null,
+  current: '',
+  selected: '',
+  minimumDate: '',
+  maximumDate: '',
+  selectorStartingYear: 0,
+  selectorEndingYear: 3000,
+  disableDateChange: false,
+  isGregorian: true,
+  configs: {},
+  reverse: 'unset',
+  options: {},
+  mode: 'datepicker',
+  minuteInterval: 5,
+  style: {},
+  minutes:0,
+  hours: 12
+};
+
+DatePicker.propTypes = {
+  onSelectedChange: PropTypes.func,
+  onMonthYearChange: PropTypes.func,
+  onTimeChange: PropTypes.func,
+  onDateChange: PropTypes.func,
+  current: PropTypes.string,
+  minutes: PropTypes.number,
+  hours: PropTypes.number,
+  selected: PropTypes.string,
+  minimumDate: PropTypes.string,
+  maximumDate: PropTypes.string,
+  selectorStartingYear: PropTypes.number,
+  selectorEndingYear: PropTypes.number,
+  disableDateChange: PropTypes.bool,
+  isGregorian: PropTypes.bool,
+  configs: PropTypes.object,
+  reverse: PropTypes.oneOf([true, false, 'unset']),
+  options: PropTypes.shape(optionsShape),
+  mode: PropTypes.oneOf(modeArray),
+  minuteInterval: PropTypes.oneOf(minuteIntervalArray),
+  style: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
+};
+
+export {DatePicker, CalendarContext, useCalendar};

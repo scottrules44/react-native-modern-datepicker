@@ -87,6 +87,7 @@ const TimeScroller = ({title, data, onChange, startValue}) => {
       <AnimatedFlatList
         ref={refContainer}
         onContentSizeChange={() => refContainer.current?.scrollToOffset({offset:itemSize*startValue})} // scroll end
+        showsHorizontalScrollIndicator={false}
         pagingEnabled
         horizontal
         snapToInterval={itemSize}
@@ -120,7 +121,7 @@ const TimeScroller = ({title, data, onChange, startValue}) => {
 const SelectTime = () => {
   const {options, state, utils, minuteInterval, mode, onTimeChange, minutes, hours} = useCalendar();
   const [mainState, setMainState] = state;
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(false); 
   const [time, setTime] = useState({
     minute: minutes||0,
     hour: hours||12,
